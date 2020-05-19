@@ -43,12 +43,12 @@ def get_attrs(attrs):
     meters = None
     dorms = None
     if "|" in attrs:
-        meters = int(attrs.split('|')[0].split(None, 1)[0].replace(",", "").replace(".", ""))
-        dorms = int(attrs.split('|')[1].split(None, 1)[0].replace(",", "").replace(".", ""))
+        meters = attrs.split('|')[0].split(None, 1)[0].replace(",", "").replace(".", "")
+        dorms = attrs.split('|')[1].split(None, 1)[0].replace(",", "").replace(".", "")
     elif "dorms" in attrs:
-        dorms = int(attrs.split(None, 1)[0].replace(",", "").replace(".", ""))
+        dorms = attrs.split(None, 1)[0].replace(",", "").replace(".", "")
     elif "m²" in attrs:
-        meters = int(attrs.split(None, 1)[0].replace(",", "").replace(".", ""))
+        meters = attrs.split(None, 1)[0].replace(",", "").replace(".", "")
     return meters, dorms
 
 
@@ -107,9 +107,9 @@ def map_cp(cp):
 
 def map_val(value):
     try:
-        val = int(value.split(None, 1)[0])
+        val = value.split(None, 1)[0]
         return val
-    except ValueError:
+    except (ValueError, IndexError):
         return value
 
 
@@ -118,6 +118,7 @@ date = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 res = []
 not_found = set()
 not_found_with_vals = {}
+save_duplicates = False
 for city in MELI_CONSTANTS.target_citis.value:
     for order_by in MELI_CONSTANTS.price_orders.value:
         links = []
@@ -140,17 +141,17 @@ for city in MELI_CONSTANTS.target_citis.value:
             address = driver.find_element_by_class_name('item-title__primary').text
             meters = None
             try:
-                meters = int(driver.find_element_by_class_name('align-surface').text.split(None, 1)[0])
-            except (ValueError, NoSuchElementException, IndexError):
+                meters = driver.find_element_by_class_name('align-surface').text.split(None, 1)[0]
+            except ( NoSuchElementException, IndexError):
                 print('[WARN] SQ Meters not found on item {}'.format(item_id))
-            dorms = driver.find_element_by_class_name('align-room').text
+            dorms = driver.find_element_by_class_name('align-room').text.split(None, 1)[0]
             barhs = None
             try:
-                baths = int(driver.find_element_by_class_name('align-bathroom').text.split(None, 1)[0])
-            except (ValueError, NoSuchElementException, IndexError):
+                baths = driver.find_element_by_class_name('align-bathroom').text.split(None, 1)[0]
+            except (NoSuchElementException, IndexError):
                 print('[WARN] No Baths found on item {}'.format(item_id))
             addr, nbhood = get_address(address)
-            d = {'id': item_id, 'price': float(price.replace(".", "")), 'square_meters': meters, 'dorms': dorms,
+            d = {'id': item_id, 'price': price.replace(".", ""), 'square_meters': meters, 'dorms': dorms,
                  'city': city.title(), 'neighborhood': nbhood, 'address': addr, 'date': date,
                  'order_type': get_order(order_by), 'bathrooms': baths, MELI_CONSTANTS.Total_surface.value: None,
                  MELI_CONSTANTS.Build_surface.value: None, MELI_CONSTANTS.Garages.value: None,
@@ -175,11 +176,11 @@ for city in MELI_CONSTANTS.target_citis.value:
                         print('\n[WARN] Value already exists')
                         print('Value for label {} already exists: {}'.format(map_label(label), d[map_label(label)]))
                         clean_label = label.lower().strip().replace(" ", "_")
-                        if d[map_label(label)] != map_val(value):
+                        if d[map_label(label)] != map_val(value) and save_duplicates:
                             print('Storing new value({}) with created label {}'.format(map_val(value), clean_label))
                             d[clean_label] = map_val(value)
                         else:
-                            print('Not saving {} because value matches old value'.format(map_val(value)))
+                            print('Not saving {} because value matches old value or saving duplicates is off? {}'.format(map_val(value), not save_duplicates))
                 else:
                     if label not in not_found:
                         not_found.add(label)
@@ -191,5 +192,21 @@ for nf in not_found:
     print("Missed value example: '{}'".format(not_found_with_vals[nf]['value']))
     print("See more on mercadolibre at {}".format(not_found_with_vals[nf]['link']))
 
-print('[INFO] Finished')
-print(res)
+save = open('data/realestate/data.csv', 'w')
+sep = ";"
+keys = list(res[0].keys())
+save_first = False
+if save_first:
+    first_line = "{}\n".format(sep.join(keys))
+    save.write(first_line)
+lines = []
+for property in res:
+    values = []
+    for key in keys:
+        values.append(property[key] if property[key] is not None else 'None')
+    line = "{}\n".format(sep.join(values))
+    lines.append(line)
+    print(line)
+save.writelines(lines)
+save.close()
+
