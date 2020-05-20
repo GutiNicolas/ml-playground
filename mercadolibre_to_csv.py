@@ -7,7 +7,8 @@ from selenium.common.exceptions import  NoSuchElementException
 
 class MELI_CONSTANTS(Enum):
     price_orders = ["", "*DESC"]
-    realestate_url = 'https://listado.mercadolibre.com.uy/inmuebles/casas/venta/{}/_OrderId_PRICE{}_PriceRange_50000USD-1200000USD'
+    realestate_url = 'https://listado.mercadolibre.com.uy/inmuebles/casas/venta/{}/_OrderId_PRICE{}_PriceRange_{}USD-{}USD'
+    price_ranges = [("100000", "240000"), ("50000", "120000"), ("72000", "139000")]
     target_citis = ['montevideo']
     Total_surface = 'total_surface_sq_meters'
     Superficie_total = 'Superficie total'
@@ -121,78 +122,79 @@ not_found_with_vals = {}
 save_duplicates = False
 for city in MELI_CONSTANTS.target_citis.value:
     for order_by in MELI_CONSTANTS.price_orders.value:
-        links = []
-        driver.get(MELI_CONSTANTS.realestate_url.value.format(city, order_by))
-        time.sleep(2)
-        item_cards = driver.find_elements_by_class_name('results-item')
-        print('[INFO] Getting items for {} order {}'.format(city, order_by))
-        for card in item_cards:
-            if card is None:
-                break
-            link = card.find_element_by_class_name('item__info-link').get_attribute('href')
-            links.append(link)
-
-        for link in links:
-            if link is None:
-                break
-            driver.get(link)
-            price = driver.find_element_by_class_name('price-tag-fraction').text
-            item_id = driver.find_element_by_name('item_id').get_property('value')
-            address = driver.find_element_by_class_name('item-title__primary').text
-            meters = None
-            try:
-                meters = driver.find_element_by_class_name('align-surface').text.split(None, 1)[0]
-            except ( NoSuchElementException, IndexError):
-                print('[WARN] SQ Meters not found on item {}'.format(item_id))
-            dorms = driver.find_element_by_class_name('align-room').text.split(None, 1)[0]
-            barhs = None
-            try:
-                baths = driver.find_element_by_class_name('align-bathroom').text.split(None, 1)[0]
-            except (NoSuchElementException, IndexError):
-                print('[WARN] No Baths found on item {}'.format(item_id))
-            addr, nbhood = get_address(address)
-            d = {'id': item_id, 'price': price.replace(".", ""), 'square_meters': meters, 'dorms': dorms,
-                 'city': city.title(), 'neighborhood': nbhood, 'address': addr, 'date': date,
-                 'order_type': get_order(order_by), 'bathrooms': baths, MELI_CONSTANTS.Total_surface.value: None,
-                 MELI_CONSTANTS.Build_surface.value: None, MELI_CONSTANTS.Garages.value: None,
-                 MELI_CONSTANTS.Property_age.value: None, MELI_CONSTANTS.Property_floors.value: None,
-                 MELI_CONSTANTS.Common_expenses.value: None, MELI_CONSTANTS.Orientation.value: None,
-                 MELI_CONSTANTS.Property_type.value: None, MELI_CONSTANTS.Rooms.value: None}
-            specs = driver.find_element_by_class_name('specs-list')
-            for spec in specs.find_elements_by_tag_name('li'):
-                if spec is None:
+        for p_r in MELI_CONSTANTS.price_ranges.value:
+            links = []
+            driver.get(MELI_CONSTANTS.realestate_url.value.format(city, order_by, p_r[0], p_r[1]))
+            time.sleep(2)
+            item_cards = driver.find_elements_by_class_name('results-item')
+            print('[INFO] Getting items for {} order {}'.format(city, order_by))
+            for card in item_cards:
+                if card is None:
                     break
-                label = spec.find_element_by_tag_name('strong').text
-                value = spec.find_element_by_tag_name('span').text
-                if label != map_label(label):
-                    if d[map_label(label)] is None:
-                        if label == MELI_CONSTANTS.Orientacion.value:
-                            d[map_label(label)] = map_cp(value)
+                link = card.find_element_by_class_name('item__info-link').get_attribute('href')
+                links.append(link)
+
+            for link in links:
+                if link is None:
+                    break
+                driver.get(link)
+                price = driver.find_element_by_class_name('price-tag-fraction').text
+                item_id = driver.find_element_by_name('item_id').get_property('value')
+                address = driver.find_element_by_class_name('item-title__primary').text
+                meters = None
+                try:
+                    meters = driver.find_element_by_class_name('align-surface').text.split(None, 1)[0]
+                except ( NoSuchElementException, IndexError):
+                    print('[WARN] SQ Meters not found on item {}'.format(item_id))
+                dorms = driver.find_element_by_class_name('align-room').text.split(None, 1)[0]
+                barhs = None
+                try:
+                    baths = driver.find_element_by_class_name('align-bathroom').text.split(None, 1)[0]
+                except (NoSuchElementException, IndexError):
+                    print('[WARN] No Baths found on item {}'.format(item_id))
+                addr, nbhood = get_address(address)
+                d = {'id': item_id, 'price': price.replace(".", ""), 'square_meters': meters, 'dorms': dorms,
+                     'city': city.title(), 'neighborhood': nbhood, 'address': addr, 'date': date,
+                    'order_type': get_order(order_by), 'bathrooms': baths, MELI_CONSTANTS.Total_surface.value: None,
+                    MELI_CONSTANTS.Build_surface.value: None, MELI_CONSTANTS.Garages.value: None,
+                    MELI_CONSTANTS.Property_age.value: None, MELI_CONSTANTS.Property_floors.value: None,
+                    MELI_CONSTANTS.Common_expenses.value: None, MELI_CONSTANTS.Orientation.value: None,
+                    MELI_CONSTANTS.Property_type.value: None, MELI_CONSTANTS.Rooms.value: None}
+                specs = driver.find_element_by_class_name('specs-list')
+                for spec in specs.find_elements_by_tag_name('li'):
+                    if spec is None:
+                        break
+                    label = spec.find_element_by_tag_name('strong').text
+                    value = spec.find_element_by_tag_name('span').text
+                    if label != map_label(label):
+                        if d[map_label(label)] is None:
+                            if label == MELI_CONSTANTS.Orientacion.value:
+                                d[map_label(label)] = map_cp(value)
+                            else:
+                                d[map_label(label)] = map_val(value)
+                            if label == MELI_CONSTANTS.Gastos_comunes.value:
+                                d['common_expenses_currency'] = get_currency(value)
                         else:
-                            d[map_label(label)] = map_val(value)
-                        if label == MELI_CONSTANTS.Gastos_comunes.value:
-                            d['common_expenses_currency'] = get_currency(value)
+                            print('\n[WARN] Value already exists')
+                            print('Value for label {} already exists: {}'.format(map_label(label), d[map_label(label)]))
+                            clean_label = label.lower().strip().replace(" ", "_")
+                            if d[map_label(label)] != map_val(value) and save_duplicates:
+                                print('Storing new value({}) with created label {}'.format(map_val(value), clean_label))
+                                d[clean_label] = map_val(value)
+                            else:
+                                print('Not saving {} because value matches old value or saving duplicates is off? {}'.format(map_val(value), not save_duplicates))
                     else:
-                        print('\n[WARN] Value already exists')
-                        print('Value for label {} already exists: {}'.format(map_label(label), d[map_label(label)]))
-                        clean_label = label.lower().strip().replace(" ", "_")
-                        if d[map_label(label)] != map_val(value) and save_duplicates:
-                            print('Storing new value({}) with created label {}'.format(map_val(value), clean_label))
-                            d[clean_label] = map_val(value)
-                        else:
-                            print('Not saving {} because value matches old value or saving duplicates is off? {}'.format(map_val(value), not save_duplicates))
-                else:
-                    if label not in not_found:
-                        not_found.add(label)
-                        not_found_with_vals[label] = {'value': value, 'link': link}
-            res.append(d)
+                        if label not in not_found:
+                            not_found.add(label)
+                            not_found_with_vals[label] = {'value': value, 'link': link}
+                res.append(d)
 
 for nf in not_found:
     print("\n[WARN] No mapping found for '{}'".format(nf))
     print("Missed value example: '{}'".format(not_found_with_vals[nf]['value']))
     print("See more on mercadolibre at {}".format(not_found_with_vals[nf]['link']))
 
-save = open('data/realestate/data.csv', 'w')
+save = open('data/realestate/data.csv', 'a')
 sep = ";"
 keys = list(res[0].keys())
 save_first = False
